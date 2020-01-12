@@ -1,64 +1,81 @@
-
-import h5py
-"""
-MNIST_data = h5py.File("../MNISTdata.hdf5", 'r')
-x_train = np.float32(MNIST_data['x_train'][:])
-y_train = np.int32(np.array(MNIST_data['y_train'][:, 0])).reshape(-1, 1)
-x_test  = np.float32(MNIST_data['x_test'][:])
-y_test  = np.int32(np.array(MNIST_data['y_test'][:, 0])).reshape(-1, 1)
-MNIST_data.close()
-"""
 import numpy as np
-import opt
-from mlxtend.data import loadlocal_mnist
 
-#load MNIST data
-#MNIST_data = gzip.File("/home/dyrim/CNN/mnist.hdf5",'r')
-"""
-train image has 60000*784 matrix 
-train label has have 60000*1   matrix
-"""
-##reading ubyte type dataset
-xs_train, ys_train = loadlocal_mnist(images_path = '/home/dyrim/CNN/train-images-idx3-ubyte', labels_path='train-labels-idx1-ubyte')
-xs_test, ys_test = loadlocal_mnist(images_path='/home/dyrim/CNN/t10k-images-idx3-ubyte', labels_path='t10k-labels-idx1-ubyte')
+from urllib import request
+import gzip
+import pickle
 
-#printing first row of train set 
-#print('DimensionsL %s x %s' % (xs_train.shape[0], xs_train.shape[1]))
-#print('\n1st row', xs_train[0])
+filename = [
+["training_images","train-images-idx3-ubyte.gz"],
+["test_images","t10k-images-idx3-ubyte.gz"],
+["training_labels","train-labels-idx1-ubyte.gz"],
+["test_labels","t10k-labels-idx1-ubyte.gz"]
+]
+
+def download_mnist():
+    base_url = "http://yann.lecun.com/exdb/mnist/"
+    for name in filename:
+        print("Downloading "+name[1]+"...")
+        request.urlretrieve(base_url+name[1], name[1])
+    print("Download complete.")
+
+def save_mnist():
+    mnist = {}
+    for name in filename[:2]:
+        with gzip.open(name[1], 'rb') as f:
+            mnist[name[0]] = np.frombuffer(f.read(), np.uint8, offset=16).reshape(-1,28*28)
+    for name in filename[-2:]:
+        with gzip.open(name[1], 'rb') as f:
+            mnist[name[0]] = np.frombuffer(f.read(), np.uint8, offset=8)
+    with open("mnist.pkl", 'wb') as f:
+        pickle.dump(mnist,f)
+    print("Save complete.")
+
+def init():
+    download_mnist()
+    save_mnist()
+
+def load():
+    with open("mnist.pkl",'rb') as f:
+        mnist = pickle.load(f)
+    return mnist["training_images"], mnist["training_labels"], mnist["test_images"], mnist["test_labels"]
+
+if __name__ == '__main__':
+    init()
 
 
-x_train = np.float32(xs_train[:])
-y_train = np.int32(np.array(ys_train[:]))
-x_test = np.float32(xs_test[:])
-y_test = np.int32(np.array(ys_test[:]))
+print("step0")
+X_train = load()[0]     #mnist data         (60000,784)
+Y_train = load()[1].T   #mnist label        (60000, )
+X_test  = load()[2]     #mnist test data    (10000,784)
+Y_test  = load()[3].T   #mnist test label   (10000, )
 
-# stack together for next step
-X = np.vstack((x_train, x_test)) #concatenates vertically
-y = np.vstack((y_train[60000:1].T, y_test[10000:1].T)) # y_train 60000*1, y_test 10000*1 
-y = y.T
+print("step1")
+print(X_train)
+print("step2")
+import argparse
+#parse the arguments
+parser = argparse.ArgumentParser()
 
-#one-hot encoding
-digits = 10
-examples = y.shape[0] #y.shape[0] = 70000, y.shape[1] = 1 
-y = y.reshape(1, examples) #line 34 : y = np. hstack((y_train, y_test)) << could be done easily
-Y_new = np.eye(digits)[y.astype('int32')]#eye makes 10*10 identity matrix
-Y_new = Y_new.T.reshape(digits,examples) #(10 , 70000)T <<<여기 잘 모르겠음. 
+print("step3")
+#hyperparameters setting
 
-#number of training set
-m = 60000
-m_test = X.shape[0] - m #??? used nowhere??? 여기말고는 쓰이는 곳이 없는데 왜 쓰여있는거지?
-X_train, X_test = X[:m].T, X[m:].T
-Y_train, Y_test = Y_new[:, :m], Y_new[:, m:]
-
-#shuffle training set
-shuffle_index = np.random.permutation(m)
-#X_train, Y_train = X_train[:, shuffle_index], Y_train[:, shuffle_index]
+parser.add_argument('--lr', type=float, default=0.5, help='learning rate')
+parser.add_argument('--epochs', type=int, default=50, help='number of epochs to train')
+parser.add_argument('--n_x', type=int, default=784, help='number of inputs')
+parser.add_argument('--n_h',type=int, default=64,help='number of hidden units')
+parser.add_argument('--beta',type=float, default=0.9, help='parameter for momentum')
+parser.add_argument('--batch_size', type=int, default=64, help='input batch size')
+print("step4")
 
 #initialization
-params = {  "W1" : np.random.randn(opt.n_h, opt.n_x)*np.sqrt(1. / opt.n_x),
-            "b1": np.zeros((opt.n_h, 1))*np.sqrt(1. / opt.n_x),
-            "W2" : np.random.randn(digits, opt.n_h)* np.sqrt(1./opt.n_h),
-            "b2": np.zeros((digits, 1))*np.sqrt(1. / opt.n_h)}
+print("step5")
+opt = parser.parse_args()
+digits = 10
+params = {  "W1" : np.random.randn(opt.n_h, opt.n_x) * np.sqrt(1. / opt.n_x),
+            "b1": np.zeros((opt.n_h, 1)) * np.sqrt(1. / opt.n_x),
+            "W2" : np.random.randn(digits, opt.n_h) * np.sqrt(1./opt.n_h),
+            "b2": np.zeros((digits, 1)) * np.sqrt(1. / opt.n_h)}
+print("step6")
 
 def sigmoid(z):
     """
@@ -80,31 +97,30 @@ def compute_loss(Y, Y_hat):
 
     return L
 
-    def feed_forward(X, params) :
-        """
-        feed forward network: 2 - layer neural net
+def feed_forward(X, params) :
+    """
+    feed forward network: 2 - layer neural net
+    inputs:
+    params: dictionay a dictionary contains all the weights and biases
+       
+    return:
+        cache: dictionay a dictionary contains all the fully connected units and activations
+    """
+    cache={}
 
-        inputs:
-            params: dictionay a dictionary contains all the weights and biases
-        
-        return:
-            cache: dictionay a dictionary contains all the fully connected units and activations
-        """
-        cache={}
+    # Z1 = W1.dot(x) + b1
+    cache["Z1"] = np.matmul(params["W1"], X) + params["b1"]
 
-        # Z1 = W1.dot(x) + b1
-        cache["Z1"] = np.matmul(params["W1"], X) + params["b1"]
+    # A1 = sigmoid(Z1)
+    cache["A1"] = sigmoid(cache["Z1"])
 
-        # A1 = sigmoid(Z1)
-        cache["A1"] = sigmoid(cache["Z1"])
+    # Z2 = W2.dot(A1) +b2
+    cache["Z2"] = np.matmul(params["W2"], cache["A1"]) + params["b2"]
 
-        # Z2 = W2.dot(A1) +b2
-        cache["Z2"] = np.matmul(params["W2"], cache["A1"] + params["b2"])
+    # A2 = softmax(Z2) 
+    cache["A2"] = np.exp(cache["Z2"])/np.sum(np.exp(cache["Z2"]), axis = 0)
 
-        # A2 = softmax(Z2) 
-        cache["A2"] = np.exp(cache["Z2"])/np.sum(np.exp(cache["Z2"]), axis = 0)
-
-        return cache
+    return cache
 
 def back_propagate(Z, Y, params, cache, m_batch) : 
     """
@@ -137,21 +153,6 @@ def back_propagate(Z, Y, params, cache, m_batch) :
 
     return grads
 
-import argparse
-
-parser = argparse.ArgumentParser()
-
-#hyperparameters setting
-
-parser.add_argument('--lr', type=float, default=0.5, help='learning rate')
-parser.add_argument('--epochs', type=int, default=50, help='number of epochs to train')
-parser.add_argument('--n_x', type=int, default=784, help='number of inputs')
-parser.add_argument('--n_h',type=int, default=64,help='number of hidden units')
-parser.add_argument('--beta',type=float, default=0.9, help='parameter for momentum')
-parser.add_argument('--batch_size', type=int, default=64, help='input batch size')
-
-#parse the arguments
-opt = parser.parse_args()
 
 #training 
 
@@ -188,11 +189,5 @@ for i in range(opt.epochs) :
     cache = feed_forward(X_test, params)
     test_loss = compute_loss(Y_test, cache["A2"])
     print("Epoch {} : training loss = {}, test loss = {}".format(i+1,train_loss,test_loss))
-
-
-
-
-
-
 
 

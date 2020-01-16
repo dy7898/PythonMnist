@@ -1,0 +1,117 @@
+import numpy as np
+
+from urllib import request
+import gzip
+import pickle
+
+filename = [
+["training_images","train-images-idx3-ubyte.gz"],
+["test_images","t10k-images-idx3-ubyte.gz"],
+["training_labels","train-labels-idx1-ubyte.gz"],
+["test_labels","t10k-labels-idx1-ubyte.gz"]
+]
+
+def download_mnist():
+    base_url = "http://yann.lecun.com/exdb/mnist/"
+    for name in filename:
+        print("Downloading "+name[1]+"...")
+        request.urlretrieve(base_url+name[1], name[1])
+    print("Download complete.")
+
+def save_mnist():
+    mnist = {}
+    for name in filename[:2]:
+        with gzip.open(name[1], 'rb') as f:
+            mnist[name[0]] = np.frombuffer(f.read(), np.uint8, offset=16).reshape(-1,28*28)
+    for name in filename[-2:]:
+        with gzip.open(name[1], 'rb') as f:
+            mnist[name[0]] = np.frombuffer(f.read(), np.uint8, offset=8)
+    with open("mnist.pkl", 'wb') as f:
+        pickle.dump(mnist,f)
+    print("Save complete.")
+
+def init():
+    download_mnist()
+    save_mnist()
+
+def load():
+    with open("mnist.pkl",'rb') as f:
+        mnist = pickle.load(f)
+    return mnist["training_images"], mnist["training_labels"], mnist["test_images"], mnist["test_labels"]
+
+if __name__ == '__main__':
+    init()
+
+
+print("step0")
+X_train = load()[0]                                     #mnist data         (60000,784)
+Y_orig_train = load()[1].T                              #mnist label        (60000, )
+X_test  = load()[2]                                     #mnist test data    (10000,784)
+Y_orig_test  = load()[3].T                              #mnist test label   (10000, )
+
+Y_train = Y_orig_train.reshape(len(Y_orig_train), 1)    #(60000, 1)
+Y_test = Y_orig_test.reshape(len(Y_orig_test), 1)       #(10000, 1)
+
+#one-hot 
+
+
+
+
+
+parameters = {}
+nsize = 255.
+def initialization( dims ):     #"dims" = number of neurons on each layer (ex: [784,100,50,50,10])
+    L = len(dims)               # L = len([28*28, 26*26, 26*26, 13*13, 10]) =5
+                                #              Conv>> ReLu>> Pool>> FC
+    parameters["Conv"]      = np.randn(3,3)
+    parameters["Conv_b"]    = 0.
+    parameters["W"]         = np.random.randn(dims[3],dims[4])
+    parameters["b"]         = 0.
+
+
+
+
+def Conv (data_in):                         #3*3 Convolusion layer
+    w       = np.sqrt(len(data_in[1]))      #sqrt(28*28)
+    start   = w + 1
+    end     = w*w - w - 2
+    conv_out = []
+    for i in range (start, end):
+        window = [data_in[i - w -1 : i - w +2], data_in[i - 1 : i + 2], data_in[i + w -1 : i + w + 2]]
+        conv_out_part[] = np.sum((np.dot(window , parameters["Conv"])) + parameters["Conv_b"]
+        conv_out = conv_out.append(conv_out_part)
+        return conv_out
+
+def ReLu (z):
+    output = np.max( 0, z)
+    return output
+
+def sigmoid(z):
+    output = 1./(1.+np.exp(-z))
+    return output
+
+def Pool (from_relu):                       #layer input is from relu layer
+    w       = np.sqrt(len(from_relu))
+    end     = w*w - w - 2
+    pool_out = []
+    for i in range (0,w):
+        for j in range(0,w/2):
+            window = [from_relu[2*(i + j) : 2*(i+ j + 1)], from_relu[ 2*(i + j) + w : 2*(i + j+ 1) + w ]]
+            max_pool = np.max(window)
+            pool_out = pool_out.append(max_pool)
+    return pool_out
+
+def FC(from_pool):
+
+
+
+
+
+
+
+
+
+
+
+               
+

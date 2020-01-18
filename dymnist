@@ -42,76 +42,107 @@ def load():
 if __name__ == '__main__':
     init()
 
-
-print("step0")
-X_train = load()[0]                                     #mnist data         (60000,784)
+X_train = load()[0]/255.                                     #mnist data         (60000,784)
 Y_orig_train = load()[1].T                              #mnist label        (60000, )
-X_test  = load()[2]                                     #mnist test data    (10000,784)
+X_test  = load()[2]/255.                                     #mnist test data    (10000,784)
 Y_orig_test  = load()[3].T                              #mnist test label   (10000, )
 
-Y_train = Y_orig_train.reshape(len(Y_orig_train), 1)    #(60000, 1)
-Y_test = Y_orig_test.reshape(len(Y_orig_test), 1)       #(10000, 1)
+Y_train_pre = Y_orig_train.reshape(1,len(Y_orig_train))    #(60000, 1)
+Y_test_pre = Y_orig_test.reshape(1,len(Y_orig_test))       #(10000, 1)
 
 #one-hot 
-
-
-
-
-
+Y_train = np.zeros((Y_train_pre.size,10))
+Y_train[np.arange(Y_train_pre.size), Y_train_pre] = 1       #(60000,10)
+Y_test = np.zeros((Y_test_pre.size, 10))
+Y_test[np.arange(Y_test_pre.size), Y_test_pre] = 1          #(10000,10)
+print(Y_train[1:10])
 parameters = {}
-nsize = 255.
-def initialization( dims ):     #"dims" = number of neurons on each layer (ex: [784,100,50,50,10])
-    L = len(dims)               # L = len([28*28, 26*26, 26*26, 13*13, 10]) =5
-                                #              Conv>> ReLu>> Pool>> FC
-    parameters["Conv"]      = np.randn(3,3)
-    parameters["Conv_b"]    = 0.
-    parameters["W"]         = np.random.randn(dims[3],dims[4])
-    parameters["b"]         = 0.
+outputs = {}
+activated ={}
+gradients = {}
 
-
-
-
-def Conv (data_in):                         #3*3 Convolusion layer
-    w       = np.sqrt(len(data_in[1]))      #sqrt(28*28)
-    start   = w + 1
-    end     = w*w - w - 2
-    conv_out = []
-    for i in range (start, end):
-        window = [data_in[i - w -1 : i - w +2], data_in[i - 1 : i + 2], data_in[i + w -1 : i + w + 2]]
-        conv_out_part[] = np.sum((np.dot(window , parameters["Conv"])) + parameters["Conv_b"]
-        conv_out = conv_out.append(conv_out_part)
-        return conv_out
+def initialize_FC(dims): #[784,500,100,50,10] len(dims) = 5
+    for i in range(1, len(dims)):
+        parameters["W" + str(i)] = np.random.randn(dims[i-1],dims[i])*(1 / dims[i - 1])   #(784,500)(500,100)(100,50)(50,10)
+        parameters["b" + str(i)] = np.zeros(( 1, dims[i]) )               #confusing.....
+    return parameters
 
 def ReLu (z):
-    output = np.max( 0, z)
-    return output
+    max = np.maximum( 0, z )
+    output = max/z.max()
+    return output 
 
-def sigmoid(z):
-    output = 1./(1.+np.exp(-z))
-    return output
+def dReLu (z):
+    z[z <=0 ] = 0.
+    z[z > 0 ] = 1.
+    return z
+    
 
-def Pool (from_relu):                       #layer input is from relu layer
-    w       = np.sqrt(len(from_relu))
-    end     = w*w - w - 2
-    pool_out = []
-    for i in range (0,w):
-        for j in range(0,w/2):
-            window = [from_relu[2*(i + j) : 2*(i+ j + 1)], from_relu[ 2*(i + j) + w : 2*(i + j+ 1) + w ]]
-            max_pool = np.max(window)
-            pool_out = pool_out.append(max_pool)
-    return pool_out
+def softmax(u):
+    return np.exp(u) / np.sum(np.exp(u), axis=1, keepdims=True)         #exp(U)/sum{exp(U)}
+  
+def forward_prop_FC(X_input, parameters, dims):
+    outputs["Z1"] = np.dot(X_input, parameters["W1"]) + parameters["b1"]    #(60000,784)*(784,500) +(1, 500)
+    activated["R1"] = ReLu(outputs["Z1"])
+#    print("R1 is", outputs["R1"])
+    outputs["Z2"] = np.dot(activated["R1"],parameters["W2"]) + parameters["b2"]   
+    activated["R2"] = ReLu(outputs["Z2"])
+#    print("R2 is", outputs["R2"])    
+    outputs["Z3"] = np.dot(activated["R2"],parameters["W3"]) + parameters["b3"]   
+    activated["R3"] = ReLu(outputs["Z3"])
+#    print("R3 is", outputs["R3"])    
+    outputs["Z4"] = np.dot(activated["R3"],parameters["W4"]) + parameters["b4"] 
+#    print("Z4 is", outputs["Z4"][1])  
+    activated["R4"] = softmax(outputs["Z4"])
+#    print("Z4 is", outputs["Z4"]) 
+#    print("R4 is", activated["R4"][1])     
+#   outputs["R5"] = softmax(outputs["R4"])
+#    print("R5 is", outputs["R5"])
+    return outputs
 
-def FC(from_pool):
+def gradient(X_train, Y_input, outputs, parameters):
+    gradients["dZ4"] = (activated["R4"] - Y_train)/60000.   #(60000,10)
+    #print("Z4 is ",gradients["dZ4"])                   
+    gradients["dR3"] = np.dot(gradients["dZ4"], parameters["W4"].T) #(60000,10)*(10,50)
+    gradients["dZ3"] = dReLu(gradients["dR3"])
+    gradients["dR2"] = np.dot(gradients["dZ3"], parameters["W3"].T) #(60000,50)*(50,100)
+    gradients["dZ2"] = dReLu(gradients["dR2"])    
+    gradients["dR1"] = np.dot(gradients["dZ2"], parameters["W2"].T) #(60000,100)*(100,500)
+    gradients["dZ1"] = dReLu(gradients["dR1"])
+    gradients["dW1"] = np.dot( X_train.T, gradients["dZ1"])         #(784,60000)*(60000,500) = (784,500)           
+    gradients["db1"] = np.sum(gradients["dZ1"],axis = 0, keepdims = True )           #column sum, 
+    for i in range(2,5):
+        gradients["dW" + str(i)] = np.dot(gradients["dZ" + str(i-1)].T, activated["R" + str(i)] ) # (N, 60000)*(60000,M)
+        gradients["db" + str(i)] = np.sum(gradients["dZ" + str(i)], axis = 0, keepdims = True)
+    return gradients, outputs, parameters
+
+def learning_FC (parameters, gradients, dims, learning_rate = 0.005):
+    
+    for i in range (1,len(dims)):
+        parameters["W" + str(i)] = parameters["W" + str(i)] - (learning_rate*gradients["dW" + str(i)])
+        parameters["b" + str(i)] = parameters["b" + str(i)] - (learning_rate*gradients["db" + str(i)])
+    return parameters
+
+def cost_cal (outputs, Y_train):
+    loss = - np.sum((Y_train * np.log(activated["R4"])), axis=1, keepdims=True)
+    #loss = np.sum(pow((Y_train - activated["R4"]),2),axis = 1, keepdims = True)/60000.
+    cost = np.sum(loss, axis = 0)/60000.
+    return cost
+
+def training (X_train, Y_train, parameters, gradients, dims, iteration):
+    initialize_FC(dims)
+    
+    for i in range ( 0, iteration+1):
+        forward_prop_FC(X_train, parameters,dims)
+        cost = cost_cal(outputs, Y_train)
+        gradient(X_train, Y_train, outputs, parameters)
+        learning_FC(parameters, gradients, dims, learning_rate=0.1)
+        if (i % 100) == 0:
+            print(f"{i}  {cost} ")
+    return  parameters        
 
 
+dims = ([784,200 ,100,50,10])
 
-
-
-
-
-
-
-
-
-               
+training(X_train, Y_train, parameters,gradients, dims, 2000)
 
